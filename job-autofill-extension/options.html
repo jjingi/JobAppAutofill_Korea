@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Job Autofill Settings</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 720px;
+      margin: 24px auto;
+      padding: 0 16px;
+    }
+    h1 {
+      margin-bottom: 8px;
+    }
+    p {
+      color: #555;
+      margin-bottom: 24px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .field.full {
+      grid-column: 1 / -1;
+    }
+    input, textarea {
+      padding: 10px;
+      font-size: 14px;
+    }
+    textarea {
+      min-height: 100px;
+      resize: vertical;
+    }
+    button {
+      margin-top: 18px;
+      padding: 10px 14px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 12px;
+      color: green;
+      font-weight: bold;
+    }
+    .section-title {
+      margin: 32px 0 8px;
+      font-size: 16px;
+      font-weight: bold;
+      border-bottom: 2px solid #ddd;
+      padding-bottom: 6px;
+    }
+    .file-row {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    .file-row label {
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .file-status {
+      font-size: 13px;
+      color: #555;
+      margin-top: 2px;
+    }
+    .file-status.saved {
+      color: #2a7a2a;
+    }
+    .file-clear {
+      font-size: 12px;
+      color: #c00;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 0;
+      margin-top: 0;
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <h1>지원서 자동완성 설정</h1>
+  <p>여기에 저장한 정보를 채용 사이트 폼에 자동으로 넣습니다.</p>
+
+  <div class="grid">
+    <div class="field">
+      <label for="firstName">First Name</label>
+      <input id="firstName" />
+    </div>
+
+    <div class="field">
+      <label for="lastName">Last Name</label>
+      <input id="lastName" />
+    </div>
+
+    <div class="field full">
+      <label for="fullName">Full Name</label>
+      <input id="fullName" />
+    </div>
+
+    <div class="field full">
+      <label for="email">Email</label>
+      <input id="email" />
+    </div>
+
+    <div class="field full">
+      <label for="phone">Phone</label>
+      <input id="phone" />
+    </div>
+
+    <div class="field">
+      <label for="city">City</label>
+      <input id="city" />
+    </div>
+
+    <div class="field">
+      <label for="state">State</label>
+      <input id="state" />
+    </div>
+
+    <div class="field">
+      <label for="zip">ZIP / Postal Code</label>
+      <input id="zip" />
+    </div>
+
+    <div class="field">
+      <label for="university">University</label>
+      <input id="university" />
+    </div>
+
+    <div class="field full">
+      <label for="linkedin">LinkedIn URL</label>
+      <input id="linkedin" />
+    </div>
+
+    <div class="field full">
+      <label for="github">GitHub URL</label>
+      <input id="github" />
+    </div>
+
+    <div class="field full">
+      <label for="portfolio">Portfolio URL</label>
+      <input id="portfolio" />
+    </div>
+
+    <div class="field full">
+      <label for="summary">Short Summary</label>
+      <textarea id="summary"></textarea>
+    </div>
+  </div>
+
+  <button id="saveBtn">저장</button>
+  <div id="status"></div>
+
+  <div class="section-title">파일 업로드</div>
+  <p style="color:#555; margin-bottom:16px; font-size:14px;">이력서/포트폴리오 파일을 저장해두면 파일 업로드 칸에 자동으로 넣어줍니다.</p>
+
+  <div class="file-row">
+    <label for="resumeFileInput">이력서 (Resume / CV)</label>
+    <input type="file" id="resumeFileInput" accept=".pdf,.doc,.docx" />
+    <div class="file-status" id="resumeFileStatus">저장된 파일 없음</div>
+    <button class="file-clear" id="resumeFileClear">삭제</button>
+  </div>
+
+  <div class="file-row">
+    <label for="portfolioFileInput">포트폴리오 파일</label>
+    <input type="file" id="portfolioFileInput" accept=".pdf,.doc,.docx,.zip,.pptx" />
+    <div class="file-status" id="portfolioFileStatus">저장된 파일 없음</div>
+    <button class="file-clear" id="portfolioFileClear">삭제</button>
+  </div>
+
+  <div id="fileStatus" style="margin-top:10px; color:green; font-weight:bold;"></div>
+
+  <script src="options.js"></script>
+</body>
+</html>

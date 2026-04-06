@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Job Autofill</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      width: 260px;
+      padding: 14px;
+    }
+    h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    #status {
+      margin-top: 10px;
+      font-size: 13px;
+      color: #333;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <h2>지원서 자동완성</h2>
+  <button id="fillBtn">현재 페이지 자동완성</button>
+  <button id="openOptions">내 정보 수정</button>
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
