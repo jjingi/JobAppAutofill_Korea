@@ -30,7 +30,7 @@
     .field.full {
       grid-column: 1 / -1;
     }
-    input, textarea {
+    input, textarea, select {
       padding: 10px;
       font-size: 14px;
     }
@@ -84,76 +84,130 @@
       margin-top: 0;
       text-decoration: underline;
     }
+    .checkbox-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin: 10px 0;
+    }
+    .checkbox-row input {
+      width: auto;
+    }
+    .hint {
+      color: #666;
+      font-size: 13px;
+      margin: 4px 0 12px;
+    }
   </style>
 </head>
 <body>
   <h1>지원서 자동완성 설정</h1>
-  <p>여기에 저장한 정보를 채용 사이트 폼에 자동으로 넣습니다.</p>
+  <p>여기에 저장한 정보를 채용 사이트 폼에 자동으로 넣습니다. AI를 켜면 페이지의 질문과 입력칸을 읽고 한국어 지원서 답변도 작성합니다.</p>
 
   <div class="grid">
     <div class="field">
-      <label for="firstName">First Name</label>
+      <label for="firstName">이름 (First Name)</label>
       <input id="firstName" />
     </div>
 
     <div class="field">
-      <label for="lastName">Last Name</label>
+      <label for="lastName">성 (Last Name)</label>
       <input id="lastName" />
     </div>
 
     <div class="field full">
-      <label for="fullName">Full Name</label>
+      <label for="fullName">전체 이름</label>
       <input id="fullName" />
     </div>
 
     <div class="field full">
-      <label for="email">Email</label>
+      <label for="email">이메일</label>
       <input id="email" />
     </div>
 
     <div class="field full">
-      <label for="phone">Phone</label>
+      <label for="phone">휴대폰 번호</label>
       <input id="phone" />
     </div>
 
     <div class="field">
-      <label for="city">City</label>
+      <label for="city">도시</label>
       <input id="city" />
     </div>
 
     <div class="field">
-      <label for="state">State</label>
+      <label for="state">주/도/지역</label>
       <input id="state" />
     </div>
 
     <div class="field">
-      <label for="zip">ZIP / Postal Code</label>
+      <label for="zip">우편번호</label>
       <input id="zip" />
     </div>
 
     <div class="field">
-      <label for="university">University</label>
+      <label for="university">학교 / 대학교</label>
       <input id="university" />
     </div>
 
     <div class="field full">
-      <label for="linkedin">LinkedIn URL</label>
+      <label for="linkedin">링크드인 URL</label>
       <input id="linkedin" />
     </div>
 
     <div class="field full">
-      <label for="github">GitHub URL</label>
+      <label for="github">깃허브 URL</label>
       <input id="github" />
     </div>
 
     <div class="field full">
-      <label for="portfolio">Portfolio URL</label>
+      <label for="portfolio">포트폴리오 URL</label>
       <input id="portfolio" />
     </div>
 
     <div class="field full">
-      <label for="summary">Short Summary</label>
+      <label for="summary">간단 자기소개</label>
       <textarea id="summary"></textarea>
+    </div>
+
+    <div class="field">
+      <label for="desiredRole">희망 직무</label>
+      <input id="desiredRole" />
+    </div>
+
+    <div class="field">
+      <label for="skills">핵심 기술 / 역량</label>
+      <input id="skills" />
+    </div>
+
+    <div class="field full">
+      <label for="experience">주요 경력 / 프로젝트</label>
+      <textarea id="experience"></textarea>
+    </div>
+
+    <div class="field full">
+      <label for="careerGoals">지원서 답변 참고 메모</label>
+      <textarea id="careerGoals"></textarea>
+    </div>
+  </div>
+
+  <div class="section-title">AI 자동완성</div>
+  <p class="hint">AI 사용 시 현재 페이지의 폼 문구와 저장된 프로필이 OpenAI API로 전송됩니다.</p>
+
+  <div class="checkbox-row">
+    <input type="checkbox" id="aiEnabled" />
+    <label for="aiEnabled">AI로 입력칸 판단 및 긴 답변 생성</label>
+  </div>
+
+  <div class="grid">
+    <div class="field full">
+      <label for="openaiApiKey">OpenAI API Key</label>
+      <input id="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" />
+    </div>
+
+    <div class="field">
+      <label for="aiModel">AI Model</label>
+      <input id="aiModel" placeholder="gpt-5.4-mini" />
     </div>
   </div>
 
@@ -179,6 +233,6 @@
 
   <div id="fileStatus" style="margin-top:10px; color:green; font-weight:bold;"></div>
 
-  <script src="options.js"></script>
+  <script src="profile-settings.js"></script>
 </body>
 </html>

@@ -1,16 +1,24 @@
 const FIELDS = [
   "firstName", "lastName", "fullName", "email", "phone",
   "city", "state", "zip", "university",
-  "linkedin", "github", "portfolio", "summary"
+  "linkedin", "github", "portfolio", "summary",
+  "desiredRole", "skills", "experience", "careerGoals"
 ];
+
+const DEFAULT_AI_MODEL = "gpt-5.4-mini";
 
 // ─── Profile (text fields) ────────────────────────────────────────────────────
 async function loadProfile() {
-  const { profile = {} } = await chrome.storage.local.get("profile");
+  const { profile = {}, openaiApiKey = "", aiSettings = {} } =
+    await chrome.storage.local.get(["profile", "openaiApiKey", "aiSettings"]);
   for (const key of FIELDS) {
     const el = document.getElementById(key);
     if (el) el.value = profile[key] || "";
   }
+
+  document.getElementById("aiEnabled").checked = Boolean(aiSettings.enabled);
+  document.getElementById("openaiApiKey").value = openaiApiKey;
+  document.getElementById("aiModel").value = aiSettings.model || DEFAULT_AI_MODEL;
 }
 
 async function saveProfile() {
@@ -19,7 +27,14 @@ async function saveProfile() {
     const el = document.getElementById(key);
     if (el) profile[key] = el.value.trim();
   }
-  await chrome.storage.local.set({ profile });
+
+  const aiSettings = {
+    enabled: document.getElementById("aiEnabled").checked,
+    model: document.getElementById("aiModel").value.trim() || DEFAULT_AI_MODEL
+  };
+  const openaiApiKey = document.getElementById("openaiApiKey").value.trim();
+
+  await chrome.storage.local.set({ profile, aiSettings, openaiApiKey });
 
   const status = document.getElementById("status");
   status.textContent = "저장 완료";
