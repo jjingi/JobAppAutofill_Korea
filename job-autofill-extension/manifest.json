@@ -5,9 +5,21 @@
   "description": "Fill job application forms from saved profile data",
   "permissions": ["storage", "scripting", "activeTab", "unlimitedStorage"],
   "host_permissions": ["https://api.openai.com/*"],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "action": {
     "default_title": "Job Autofill",
-    "default_popup": "autofill-popup.html"
+    "default_popup": "autofill-popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "options_page": "profile-settings.html"
 }

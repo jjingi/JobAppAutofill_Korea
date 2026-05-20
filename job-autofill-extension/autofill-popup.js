@@ -6,45 +6,6 @@ document.getElementById("openOptions").addEventListener("click", async () => {
   await chrome.runtime.openOptionsPage();
 });
 
-document.getElementById("debugBtn").addEventListener("click", async () => {
-  try {
-    setStatus("현재 페이지 진단 정보를 수집 중...");
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab || !tab.id) {
-      setStatus("활성 탭을 찾을 수 없습니다.");
-      return;
-    }
-
-    const [{ result }] = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: "MAIN",
-      func: collectAutofillDebugInfo
-    });
-    const stored = await chrome.storage.local.get(["resumeFile", "portfolioFile"]);
-    result.savedFiles = {
-      resumeFile: stored.resumeFile ? {
-        name: stored.resumeFile.name || "",
-        type: stored.resumeFile.type || "",
-        size: stored.resumeFile.size || 0,
-        hasData: Boolean(stored.resumeFile.data)
-      } : null,
-      portfolioFile: stored.portfolioFile ? {
-        name: stored.portfolioFile.name || "",
-        type: stored.portfolioFile.type || "",
-        size: stored.portfolioFile.size || 0,
-        hasData: Boolean(stored.portfolioFile.data)
-      } : null
-    };
-
-    const text = JSON.stringify(result, null, 2);
-    await navigator.clipboard.writeText(text);
-    setStatus(`진단 정보를 클립보드에 복사했습니다.\n여기에 붙여넣어 주세요.\n(${text.length}자)`);
-  } catch (error) {
-    console.error(error);
-    setStatus("진단 정보 복사 실패: " + error.message);
-  }
-});
-
 document.getElementById("fillBtn").addEventListener("click", async () => {
   try {
     setStatus("현재 페이지를 분석 중...");
@@ -63,12 +24,6 @@ document.getElementById("fillBtn").addEventListener("click", async () => {
       "aiSettings"
     ]);
     const fileStatus = getSavedFileStatus(stored);
-    if (!stored.resumeFile || !stored.resumeFile.data) {
-      console.warn("[Job Autofill] resume file is not saved in extension storage.");
-    }
-    if (!stored.portfolioFile || !stored.portfolioFile.data) {
-      console.warn("[Job Autofill] portfolio file is not saved in extension storage.");
-    }
 
     let aiSummary = "";
     if (stored.aiSettings && stored.aiSettings.enabled) {
@@ -81,8 +36,7 @@ document.getElementById("fillBtn").addEventListener("click", async () => {
           aiSummary = `AI 자동완성: ${result.filled}개 입력`;
           if (result.skipped > 0) aiSummary += `, ${result.skipped}개 건너뜀`;
         } catch (error) {
-          console.warn("[Job Autofill] AI autofill failed", error);
-          aiSummary = "AI 자동완성 실패: " + error.message;
+          aiSummary = "AI 자동완성 실패: " + getKoreanErrorMessage(error);
         }
       }
     }
@@ -97,13 +51,34 @@ document.getElementById("fillBtn").addEventListener("click", async () => {
     if (fileCount > 0) finalParts.push(`파일 업로드: ${fileCount}개 처리`);
     setStatus(finalParts.join("\n"));
   } catch (error) {
-    console.error(error);
-    setStatus("실행 실패: " + error.message);
+    setStatus("실행 실패: " + getKoreanErrorMessage(error));
   }
 });
 
 function setStatus(message) {
   statusEl.textContent = message;
+}
+
+function getKoreanErrorMessage(error) {
+  const status = error && error.status;
+  const code = String((error && error.code) || "").toLowerCase();
+  const type = String((error && error.type) || "").toLowerCase();
+  const message = String((error && error.message) || error || "").toLowerCase();
+
+  if (status === 401 || code.includes("invalid_api_key") || message.includes("api key")) {
+    return "OpenAI API Key가 올바르지 않습니다. 설정 페이지에서 키를 다시 확인해 주세요.";
+  }
+  if (status === 429 || code.includes("rate_limit") || message.includes("quota") || message.includes("rate limit")) {
+    return "OpenAI 사용량 한도 또는 요청 제한에 도달했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (status === 400 || type.includes("invalid_request")) {
+    return "AI 요청 형식에 문제가 있습니다. 모델 이름과 저장된 프로필/파일 정보를 확인해 주세요.";
+  }
+  if (message.includes("failed to fetch") || message.includes("network")) {
+    return "네트워크 연결을 확인한 뒤 다시 시도해 주세요.";
+  }
+  if (error && error.message && /[가-힣]/.test(error.message)) return error.message;
+  return "처리 중 오류가 발생했습니다. 설정을 확인한 뒤 다시 시도해 주세요.";
 }
 
 function getSavedFileStatus(stored) {
@@ -203,7 +178,9 @@ async function requestAiFillPlan({ apiKey, model, profile, pageContext }) {
     "Read the page form context and decide which applicant profile value belongs in each field.",
     "Use Korean for generated long-answer responses unless the field clearly asks for another language.",
     "For short factual fields, use the applicant profile exactly. Do not invent emails, phone numbers, schools, dates, salary, visa status, legal attestations, or certifications.",
-    "For long Korean application questions, draft a concise, professional answer from the supplied profile, summary, experience, skills, desired role, and notes.",
+    "For repeated education, career, project, recommender, address, and military fields, use the structured arrays and explicit profile fields when available.",
+    "For disability, veteran, military, eligibility, and other sensitive/legal fields, fill only when the applicant profile explicitly contains the value. Never infer these values.",
+    "For long Korean application questions, draft a concise, professional answer from the supplied profile, structured educationItems, experienceItems, projectItems, summary, experience, skills, desired role, notes, and resumeContext extracted from resume/portfolio files.",
     "For long-answer fields, use the field.questionText and field.hints to directly answer that exact question.",
     "Different long-answer questions must receive meaningfully different answers. Do not reuse a generic introduction across multiple questions.",
     "If a long-answer field has no identifiable question text, skip it instead of writing a vague answer.",
@@ -253,8 +230,11 @@ async function requestAiFillPlan({ apiKey, model, profile, pageContext }) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const message = data.error && data.error.message ? data.error.message : `OpenAI API error ${response.status}`;
-    throw new Error(message);
+    const error = new Error(data.error && data.error.message ? data.error.message : `OpenAI API error ${response.status}`);
+    error.status = response.status;
+    error.type = data.error && data.error.type;
+    error.code = data.error && data.error.code;
+    throw error;
   }
 
   const text = extractResponseText(data);
@@ -283,123 +263,32 @@ function extractResponseText(data) {
 function compactObject(obj) {
   const output = {};
   for (const [key, value] of Object.entries(obj || {})) {
-    if (value == null) continue;
-    const text = String(value).trim();
-    if (text) output[key] = text;
+    const compacted = compactValue(value);
+    if (compacted == null) continue;
+    if (typeof compacted === "string" && !compacted.trim()) continue;
+    if (Array.isArray(compacted) && compacted.length === 0) continue;
+    if (typeof compacted === "object" && !Array.isArray(compacted) && Object.keys(compacted).length === 0) continue;
+    output[key] = compacted;
   }
   return output;
 }
 
-function collectAutofillDebugInfo() {
-  function shortText(text, limit) {
-    return (text || "").replace(/\s+/g, " ").trim().slice(0, limit);
+function compactValue(value) {
+  if (value == null) return null;
+  if (Array.isArray(value)) {
+    return value
+      .map(compactValue)
+      .filter(item => {
+        if (item == null) return false;
+        if (typeof item === "string") return Boolean(item.trim());
+        if (Array.isArray(item)) return item.length > 0;
+        if (typeof item === "object") return Object.keys(item).length > 0;
+        return true;
+      });
   }
-
-  function safeHtml(el) {
-    const clone = el.cloneNode(true);
-    clone.querySelectorAll("script, style, svg, img").forEach(node => node.remove());
-    clone.querySelectorAll("input, textarea").forEach(node => {
-      node.removeAttribute("value");
-      if (node.tagName.toLowerCase() === "textarea") node.textContent = "";
-    });
-    return clone.outerHTML.replace(/\s+/g, " ").slice(0, 1400);
-  }
-
-  function elementSummary(el) {
-    const rect = el.getBoundingClientRect();
-    const block = el.closest("label, fieldset, dl, [class*='upload'], [class*='Upload'], [class*='file'], [class*='File'], [class*='attachment'], [class*='Attachment'], [class*='form-field'], [class*='field-form'], [class*='form-group'], [class*='Question'], [class*='question']");
-    return {
-      tag: el.tagName.toLowerCase(),
-      type: el.getAttribute("type") || "",
-      role: el.getAttribute("role") || "",
-      id: el.id || "",
-      name: el.getAttribute("name") || "",
-      fileCount: el.files ? el.files.length : undefined,
-      fileNames: el.files ? Array.from(el.files).map(file => file.name) : undefined,
-      autofillFileKey: el.getAttribute("data-job-autofill-file-key") || "",
-      autofillFileName: el.getAttribute("data-job-autofill-file-name") || "",
-      autofillQuestion: el.getAttribute("data-job-autofill-question") || "",
-      className: typeof el.className === "string" ? el.className.slice(0, 300) : "",
-      ariaLabel: el.getAttribute("aria-label") || "",
-      text: shortText(el.innerText || el.textContent || "", 500),
-      blockText: block ? shortText(block.innerText || block.textContent || "", 700) : "",
-      html: safeHtml(block || el),
-      position: {
-        top: Math.round(rect.top + window.scrollY),
-        left: Math.round(rect.left + window.scrollX),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height)
-      }
-    };
-  }
-
-  const uploadCandidateSelector = [
-    "input[type='file']",
-    "button",
-    "label",
-    "[role='button']",
-    "[tabindex]",
-    "[class*='upload']",
-    "[class*='Upload']",
-    "[class*='file']",
-    "[class*='File']",
-    "[class*='attachment']",
-    "[class*='Attachment']"
-  ].join(",");
-
-  const textCandidateSelector = [
-    "textarea",
-    "[contenteditable='true']",
-    "[role='textbox']",
-    "input:not([type])",
-    "input[type='text']",
-    "input[type='url']",
-    "select"
-  ].join(",");
-
-  const uploadCandidates = Array.from(document.querySelectorAll(uploadCandidateSelector))
-    .filter(el => {
-      const text = shortText([
-        el.innerText || el.textContent || "",
-        el.getAttribute("aria-label") || "",
-        el.getAttribute("title") || "",
-        el.getAttribute("name") || "",
-        el.id || "",
-        el.className || ""
-      ].join(" "), 800).toLowerCase();
-      return el.matches("input[type='file']") ||
-        /이력서|자소서|자기소개서|포트폴리오|첨부|파일|업로드|resume|cv|cover letter|portfolio|attachment|upload|file/.test(text);
-    })
-    .slice(0, 40)
-    .map(elementSummary);
-
-  const answerCandidates = Array.from(document.querySelectorAll(textCandidateSelector))
-    .filter(el => {
-      const block = el.closest("label, fieldset, dl, [class*='form-field'], [class*='field-form'], [class*='form-group'], [class*='Question'], [class*='question']");
-      const text = shortText([
-        el.getAttribute("aria-label") || "",
-        el.getAttribute("placeholder") || "",
-        el.getAttribute("name") || "",
-        el.id || "",
-        block ? (block.innerText || block.textContent || "") : ""
-      ].join(" "), 900).toLowerCase();
-      return el.tagName.toLowerCase() === "textarea" ||
-        el.isContentEditable ||
-        el.getAttribute("role") === "textbox" ||
-        /자기소개|지원동기|경험|역량|강점|포부|프로젝트|question|answer|essay|motivation|describe|tell us/.test(text);
-    })
-    .slice(0, 40)
-    .map(elementSummary);
-
-  return {
-    url: location.href,
-    title: document.title,
-    language: document.documentElement.lang || navigator.language || "",
-    fileInputs: Array.from(document.querySelectorAll("input[type='file']")).map(elementSummary),
-    uploadCandidates,
-    answerCandidates,
-    uploadDiagnostics: window.__jobAutofillUploadDiagnostics || []
-  };
+  if (typeof value === "object") return compactObject(value);
+  const text = String(value).trim();
+  return text || null;
 }
 
 function fillKoreanLongAnswerFallback(profile) {
@@ -520,6 +409,22 @@ function fillKoreanLongAnswerFallback(profile) {
     return parts.map(clean).filter(Boolean).join(" ");
   }
 
+  function structuredItemsText(items, keys) {
+    if (!Array.isArray(items)) return "";
+    return items
+      .map(item => keys.map(key => item && item[key]).map(clean).filter(Boolean).join(" - "))
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  function structuredProfileText() {
+    return sentence([
+      structuredItemsText(profile.educationItems, ["school", "degree", "major", "graduationStatus", "gpa", "notes"]),
+      structuredItemsText(profile.experienceItems, ["company", "position", "responsibilities", "achievements"]),
+      structuredItemsText(profile.projectItems, ["name", "role", "skills", "description"])
+    ]);
+  }
+
   function companyLabel() {
     const title = clean(document.title || "");
     const host = location.hostname.replace(/^www\./, "");
@@ -532,12 +437,16 @@ function fillKoreanLongAnswerFallback(profile) {
     const intro = profile.summary || `${role}에서 사용자의 문제를 깊이 이해하고 실질적인 결과를 만드는 일을 하고 싶습니다.`;
     const skills = profile.skills ? `특히 ${profile.skills} 역량을 바탕으로` : "제가 쌓아온 역량을 바탕으로";
     const experience = profile.experience ? ` ${profile.experience}` : "";
+    const structured = structuredProfileText();
+    const resumeContext = profile.resumeContext ? ` ${profile.resumeContext}` : "";
     const goals = profile.careerGoals ? ` ${profile.careerGoals}` : "";
     return sentence([
       `${company}에 지원한 이유는 제가 지향하는 성장 방향과 ${role}에서 만들고 싶은 가치가 잘 맞는다고 느꼈기 때문입니다.`,
       intro,
       `${skills} 팀과 사용자에게 실질적으로 도움이 되는 결과를 만드는 데 기여하고 싶습니다.`,
       experience,
+      structured,
+      resumeContext,
       goals
     ]);
   }
@@ -545,11 +454,15 @@ function fillKoreanLongAnswerFallback(profile) {
   function contributionAnswer(questionText) {
     const skills = profile.skills ? `${profile.skills}을 활용해` : "제가 가진 역량을 활용해";
     const experience = profile.experience ? ` ${profile.experience}` : "";
+    const structured = structuredProfileText();
+    const resumeContext = profile.resumeContext ? ` ${profile.resumeContext}` : "";
     const goals = profile.careerGoals ? ` ${profile.careerGoals}` : "";
     return sentence([
       `이 질문에 대해서는 ${questionText ? `"${questionText}"라는 관점에서 ` : ""}제가 만들 수 있는 구체적인 기여를 중심으로 말씀드리고 싶습니다.`,
       `저는 ${skills} 문제를 구조적으로 이해하고, 팀이 바로 활용할 수 있는 실행 가능한 결과물로 정리하는 데 기여하고 싶습니다.`,
       experience,
+      structured,
+      resumeContext,
       goals
     ]);
   }
@@ -558,6 +471,8 @@ function fillKoreanLongAnswerFallback(profile) {
     return sentence([
       questionText ? `이 질문과 관련해 가장 먼저 말씀드리고 싶은 경험은 다음과 같습니다.` : "",
       profile.experience,
+      structuredProfileText(),
+      profile.resumeContext,
       profile.skills ? `이 과정에서 ${profile.skills}을 활용했습니다.` : "",
       profile.summary
     ]) || genericAnswer();
@@ -568,6 +483,8 @@ function fillKoreanLongAnswerFallback(profile) {
       questionText ? `질문에서 요구하는 역량과 연결해 보면, ` : "",
       profile.skills ? `저의 강점은 ${profile.skills}을 바탕으로 문제를 구조화하고 끝까지 실행하는 점입니다.` : "저의 강점은 문제를 구조적으로 이해하고 책임감 있게 실행하는 점입니다.",
       profile.experience,
+      structuredProfileText(),
+      profile.resumeContext,
       profile.summary
     ]);
   }
@@ -578,6 +495,8 @@ function fillKoreanLongAnswerFallback(profile) {
       `"${questionText}"에 대해 제 경험과 역량을 연결해 답변드리겠습니다.`,
       profile.summary,
       profile.experience,
+      structuredProfileText(),
+      profile.resumeContext,
       profile.careerGoals
     ]) || "이력서와 포트폴리오에 관련 내용을 기재해 두었습니다.";
   }
@@ -632,7 +551,7 @@ function fillKoreanLongAnswerFallback(profile) {
 function collectAiFormContext() {
   const FIELD_ATTR = "data-job-autofill-ai-id";
   const TEXT_CONTROL_SEL = "input, textarea, select, [contenteditable='true'], [role='textbox']";
-  const blockedTypes = new Set(["hidden", "password", "checkbox", "radio", "file", "submit", "button", "reset", "image"]);
+  const blockedTypes = new Set(["hidden", "password", "file", "submit", "button", "reset", "image"]);
 
   function normalize(text) {
     return (text || "")
@@ -663,6 +582,8 @@ function collectAiFormContext() {
   }
 
   function controlValue(el) {
+    const type = normalize(el.getAttribute("type"));
+    if (type === "radio" || type === "checkbox") return el.checked ? el.value : "";
     if (el.tagName.toLowerCase() === "select") return el.value;
     if ("value" in el) return el.value;
     return el.innerText || el.textContent || "";
@@ -840,6 +761,28 @@ function collectAiFormContext() {
       .slice(0, 80);
   }
 
+  function optionLabel(input) {
+    const labelText = input.closest("label") ? input.closest("label").innerText || input.closest("label").textContent || "" : "";
+    return shortText(labelText || input.getAttribute("aria-label") || input.value, 120);
+  }
+
+  function radioOrCheckboxOptions(input) {
+    const type = normalize(input.getAttribute("type"));
+    if (type !== "radio" && type !== "checkbox") return [];
+    const name = input.getAttribute("name") || "";
+    const group = name
+      ? Array.from(document.querySelectorAll(`input[type="${type}"][name="${CSS.escape(name)}"]`))
+      : [input];
+    return group
+      .filter(isVisible)
+      .map(option => {
+        const label = optionLabel(option);
+        return label && option.value ? `${label} (${option.value})` : label || option.value;
+      })
+      .filter(Boolean)
+      .slice(0, 40);
+  }
+
   function isLikelyLongAnswer(input, hints) {
     const tag = input.tagName.toLowerCase();
     const maxLength = Number(input.getAttribute("maxlength") || 0);
@@ -877,15 +820,30 @@ function collectAiFormContext() {
   }
 
   const fields = [];
+  const seenChoiceGroups = new Set();
   const controls = Array.from(document.querySelectorAll(TEXT_CONTROL_SEL))
     .filter((control, index, arr) => !arr.some(other => other !== control && other.contains(control) && (other.isContentEditable || other.getAttribute("role") === "textbox")));
 
   controls.forEach((input, index) => {
     if (!isFillable(input)) return;
-    if (controlValue(input) && String(controlValue(input)).trim() !== "") return;
+    const type = normalize(input.getAttribute("type") || "");
+    const isChoice = type === "radio" || type === "checkbox";
+    if (isChoice) {
+      const groupKey = `${type}:${input.getAttribute("name") || index}`;
+      if (seenChoiceGroups.has(groupKey)) return;
+      seenChoiceGroups.add(groupKey);
+    } else if (controlValue(input) && String(controlValue(input)).trim() !== "") {
+      return;
+    }
 
     const id = `ai-${Date.now()}-${index}`;
-    input.setAttribute(FIELD_ATTR, id);
+    if (isChoice && input.getAttribute("name")) {
+      document.querySelectorAll(`input[type="${type}"][name="${CSS.escape(input.getAttribute("name"))}"]`).forEach(item => {
+        item.setAttribute(FIELD_ATTR, id);
+      });
+    } else {
+      input.setAttribute(FIELD_ATTR, id);
+    }
 
     const block = nearestFieldBlock(input);
     const hints = extractHints(block, input);
@@ -902,7 +860,7 @@ function collectAiFormContext() {
       autocomplete: input.getAttribute("autocomplete") || "",
       required: Boolean(input.required || input.getAttribute("aria-required") === "true"),
       maxLength: Number(input.getAttribute("maxlength") || 0),
-      options: optionTexts(input),
+      options: isChoice ? radioOrCheckboxOptions(input) : optionTexts(input),
       hints,
       isLongAnswer: isLikelyLongAnswer(input, hints),
       questionText,
@@ -966,12 +924,44 @@ function applyAiFills(fills) {
     return false;
   }
 
+  function choiceLabel(input) {
+    const label = input.closest("label");
+    return normalize(label ? label.innerText || label.textContent || "" : input.getAttribute("aria-label") || "");
+  }
+
+  function fillChoice(el, value) {
+    const type = normalize(el.getAttribute("type"));
+    const name = el.getAttribute("name") || "";
+    const target = normalize(value).replace(/\([^)]*\)/g, "").trim();
+    const group = name
+      ? Array.from(document.querySelectorAll(`input[type="${type}"][name="${CSS.escape(name)}"]`))
+      : [el];
+    let fallback = null;
+
+    for (const input of group) {
+      const label = choiceLabel(input);
+      const inputValue = normalize(input.value);
+      if (label === target || inputValue === target) {
+        input.checked = true;
+        return input;
+      }
+      if (!fallback && target && (label.includes(target) || target.includes(label) || inputValue.includes(target) || target.includes(inputValue))) {
+        fallback = input;
+      }
+    }
+
+    if (fallback) {
+      fallback.checked = true;
+      return fallback;
+    }
+    return null;
+  }
+
   function fillElement(el, value) {
     if (!el || value == null || value === "") return false;
     const tag = el.tagName.toLowerCase();
+    const type = normalize(el.getAttribute("type"));
     const editable = el.isContentEditable || el.getAttribute("role") === "textbox";
-    const currentValue = "value" in el ? el.value : (el.innerText || el.textContent || "");
-    if (currentValue && String(currentValue).trim() !== "") return false;
 
     let finalValue = String(value).trim();
     const maxLength = Number(el.getAttribute("maxlength") || 0);
@@ -979,12 +969,21 @@ function applyAiFills(fills) {
       finalValue = finalValue.slice(0, maxLength);
     }
 
+    if (type === "radio" || type === "checkbox") {
+      const selected = fillChoice(el, finalValue);
+      if (!selected) return false;
+      el = selected;
+    } else {
+      const currentValue = "value" in el ? el.value : (el.innerText || el.textContent || "");
+      if (currentValue && String(currentValue).trim() !== "") return false;
+    }
+
     if (tag === "select") {
       if (!fillSelect(el, finalValue)) return false;
     } else if (editable) {
       el.focus();
       el.textContent = finalValue;
-    } else {
+    } else if (type !== "radio" && type !== "checkbox") {
       setNativeValue(el, finalValue);
     }
 
@@ -1013,7 +1012,7 @@ function applyAiFills(fills) {
 }
 
 async function runFileUploadAutofill(tabId, stored) {
-  const hasFiles = stored.resumeFile || stored.portfolioFile;
+  const hasFiles = Boolean((stored.resumeFile && stored.resumeFile.data) || (stored.portfolioFile && stored.portfolioFile.data));
   if (!hasFiles) return 0;
 
   const [{ result: existingResult }] = await chrome.scripting.executeScript({
@@ -1072,9 +1071,6 @@ async function runFileUploadAutofill(tabId, stored) {
         return pieces.join(" ").slice(0, 500);
       }
 
-      const allLayouts = [...document.querySelectorAll(LAYOUT_SEL)];
-      console.log("[Job Autofill] upload layouts detected:", allLayouts.length, allLayouts);
-
       const seen = new Set();
       const results = [];
 
@@ -1085,9 +1081,9 @@ async function runFileUploadAutofill(tabId, stored) {
         const btnId = Math.random().toString(36).slice(2);
         btn.setAttribute("data-autofill-btn-id", btnId);
         results.push({ btnId, key });
-        console.log("[Job Autofill] upload target ->", key, btn);
       }
 
+      const allLayouts = [...document.querySelectorAll(LAYOUT_SEL)];
       for (const layout of allLayouts) {
         const rect = layout.getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) continue;
@@ -1129,96 +1125,106 @@ async function runFileUploadAutofill(tabId, stored) {
     }
   });
 
-  console.log("[Job Autofill popup] upload targets:", targets);
-
   let uploaded = existingFilled;
   for (const { btnId, key } of (targets || [])) {
     const fileData = stored[key];
     if (!fileData || !fileData.data) continue;
 
-    await chrome.scripting.executeScript({
+    const [{ result: clickedUploadFilled }] = await chrome.scripting.executeScript({
       target: { tabId },
       world: "MAIN",
       func: (bid, fd) => {
         const btn = document.querySelector('[data-autofill-btn-id="' + bid + '"]');
-        if (!btn) { console.warn("[Job Autofill] button not found:", bid); return; }
+        if (!btn) return false;
         btn.removeAttribute("data-autofill-btn-id");
 
-        let done = false;
-        const origClick = HTMLInputElement.prototype.click;
+        return new Promise(resolve => {
+          let done = false;
+          let mo;
+          let timer;
+          const origClick = HTMLInputElement.prototype.click;
 
-        function doInject(input) {
-          if (done) return;
-          done = true;
-          HTMLInputElement.prototype.click = origClick;
-          try { mo.disconnect(); } catch (_) {}
-          try { clearTimeout(timer); } catch (_) {}
-          try {
-            const raw = atob(fd.data.split(",")[1]);
-            const buf = new Uint8Array(raw.length);
-            for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
-            const file = new File([buf], fd.name, { type: fd.type });
-            const dt = new DataTransfer();
-            dt.items.add(file);
-            input.files = dt.files;
-            input.dispatchEvent(new Event("change", { bubbles: true }));
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-            console.log("[Job Autofill] file injected:", fd.name);
-          } catch (e) {
-            console.warn("[Job Autofill] inject error:", e);
-          }
-        }
-
-        HTMLInputElement.prototype.click = function () {
-          if (this.type === "file") { doInject(this); return; }
-          return origClick.call(this);
-        };
-
-        const mo = new MutationObserver(mutations => {
-          for (const m of mutations) {
-            for (const node of m.addedNodes) {
-              if (node.nodeType !== 1) continue;
-              const inputs = node.type === "file"
-                ? [node]
-                : [...node.querySelectorAll("input[type='file']")];
-              if (!inputs.length) continue;
-              inputs[0].click = () => {};
-              doInject(inputs[0]);
-              return;
-            }
-          }
-        });
-        mo.observe(document.documentElement, { childList: true, subtree: true });
-
-        const timer = setTimeout(() => {
-          if (!done) {
+          function finish(success) {
+            if (done) return;
             done = true;
             HTMLInputElement.prototype.click = origClick;
-            mo.disconnect();
-            console.warn("[Job Autofill] upload timeout - no file input created for:", fd.name);
+            try { if (mo) mo.disconnect(); } catch (_) {}
+            try { clearTimeout(timer); } catch (_) {}
+            resolve(Boolean(success));
           }
-        }, 3000);
 
-        btn.click();
+          function doInject(input) {
+            try {
+              const raw = atob(fd.data.split(",")[1]);
+              const buf = new Uint8Array(raw.length);
+              for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+              const file = new File([buf], fd.name, { type: fd.type });
+              const dt = new DataTransfer();
+              dt.items.add(file);
+              try {
+                const descriptor = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "files");
+                if (descriptor && descriptor.set) descriptor.set.call(input, dt.files);
+                else input.files = dt.files;
+              } catch (_) {
+                Object.defineProperty(input, "files", {
+                  configurable: true,
+                  get: function () { return dt.files; }
+                });
+              }
+              input.dispatchEvent(new Event("change", { bubbles: true }));
+              input.dispatchEvent(new Event("input", { bubbles: true }));
+              finish(input.files && input.files.length > 0);
+            } catch (_) {
+              finish(false);
+            }
+          }
+
+          HTMLInputElement.prototype.click = function () {
+            if (this.type === "file") {
+              doInject(this);
+              return;
+            }
+            return origClick.call(this);
+          };
+
+          mo = new MutationObserver(mutations => {
+            for (const m of mutations) {
+              for (const node of m.addedNodes) {
+                if (node.nodeType !== 1) continue;
+                const inputs = node.type === "file"
+                  ? [node]
+                  : [...node.querySelectorAll("input[type='file']")];
+                if (!inputs.length) continue;
+                inputs[0].click = () => {};
+                doInject(inputs[0]);
+                return;
+              }
+            }
+          });
+          mo.observe(document.documentElement, { childList: true, subtree: true });
+
+          timer = setTimeout(() => {
+            finish(false);
+          }, 3000);
+
+          try {
+            btn.click();
+          } catch (_) {
+            finish(false);
+          }
+        });
       },
       args: [btnId, { name: fileData.name, type: fileData.type, data: fileData.data }]
     });
 
-    uploaded++;
-    await new Promise(resolve => setTimeout(resolve, 700));
+    if (clickedUploadFilled) uploaded++;
+    await new Promise(resolve => setTimeout(resolve, 200));
   }
 
   return uploaded;
 }
 
 function fillExistingFileInputs(files) {
-  const diagnostics = [];
-  window.__jobAutofillUploadDiagnostics = diagnostics;
-
-  function record(item) {
-    diagnostics.push(Object.assign({ time: new Date().toISOString() }, item));
-  }
-
   function normalize(text) {
     return (text || "").toLowerCase().replace(/\s+/g, " ").trim();
   }
@@ -1333,16 +1339,14 @@ function fillExistingFileInputs(files) {
     input.dispatchEvent(new Event("blur", { bubbles: true, composed: true }));
   }
 
-  function fillOneInput(input, index, inputs, source) {
+  function fillOneInput(input, index, inputs) {
     const key = detectKey(input, index, inputs);
     if (!key) {
-      record({ index, source, skipped: true, reason: "no file key" });
       return false;
     }
 
     const fd = files[key];
     if (!fd || !fd.data) {
-      record({ index, source, key, skipped: true, reason: "file not saved" });
       return false;
     }
 
@@ -1350,23 +1354,11 @@ function fillExistingFileInputs(files) {
       const file = buildFile(fd);
       setInputFiles(input, file);
       fireFileEvents(input);
-      const dropped = dispatchFileDrop(visibleUploaderForIndex(index), file);
+      dispatchFileDrop(visibleUploaderForIndex(index), file);
       input.setAttribute("data-job-autofill-file-key", key);
       input.setAttribute("data-job-autofill-file-name", fd.name || "");
-      record({
-        index,
-        source,
-        key,
-        name: fd.name || "",
-        size: fd.size || file.size || 0,
-        afterCount: input.files ? input.files.length : -1,
-        dropped
-      });
-      console.log("[Job Autofill] existing file input filled:", key, fd.name, input);
       return input.files && input.files.length > 0;
-    } catch (error) {
-      record({ index, source, key, error: String(error && error.message ? error.message : error) });
-      console.warn("[Job Autofill] existing file input fill error:", error, input);
+    } catch (_) {
       return false;
     }
   }
@@ -1382,10 +1374,9 @@ function fillExistingFileInputs(files) {
   const directInputs = stackedHiddenUploaderHandled ? stackedHiddenInputs.slice(0, 2) : inputs;
   directInputs.forEach((input, index) => {
     if (input.disabled) {
-      record({ index, source: "direct", skipped: true, reason: "disabled" });
       return;
     }
-    if (fillOneInput(input, index, stackedHiddenUploaderHandled ? stackedHiddenInputs : inputs, "direct")) filled++;
+    if (fillOneInput(input, index, stackedHiddenUploaderHandled ? stackedHiddenInputs : inputs)) filled++;
   });
 
   const stackedDropzones = Array.from(document.querySelectorAll('[class*="file-uploader__Container"], [class*="FileUploader"], [class*="upload"], [class*="Upload"]'))
@@ -1400,7 +1391,7 @@ function fillExistingFileInputs(files) {
       if (!input) return;
 
       input.click = function () {
-        fillOneInput(input, index, stackedHiddenInputs, "hidden-uploader-click-intercept");
+        fillOneInput(input, index, stackedHiddenInputs);
         fireFileEvents(input);
       };
 
@@ -1416,7 +1407,6 @@ function fillExistingFileInputs(files) {
   }
 
   const finalFilled = inputs.filter(input => input.files && input.files.length > 0 && input.getAttribute("data-job-autofill-file-key")).length;
-  record({ summary: true, inputCount: inputs.length, finalFilled, stackedHiddenUploaderHandled });
 
-  return { filled: Math.max(filled, finalFilled), diagnostics, stackedHiddenUploaderHandled };
+  return { filled: Math.max(filled, finalFilled), stackedHiddenUploaderHandled };
 }

@@ -4,23 +4,63 @@
   <meta charset="UTF-8" />
   <title>Job Autofill Settings</title>
   <style>
+    :root {
+      --bg: #eef7ff;
+      --panel: #ffffff;
+      --panel-soft: #f7fbff;
+      --line: #cfe6fb;
+      --text: #14324a;
+      --muted: #5f7b91;
+      --primary: #2388d9;
+      --primary-dark: #1268ad;
+      --danger: #c2414b;
+      --success: #1f8a5b;
+      --shadow: 0 18px 45px rgba(35, 136, 217, 0.13);
+    }
+    * {
+      box-sizing: border-box;
+    }
     body {
-      font-family: Arial, sans-serif;
-      max-width: 720px;
-      margin: 24px auto;
-      padding: 0 16px;
+      font-family: Inter, Arial, sans-serif;
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 32px 18px 56px;
+      background:
+        radial-gradient(circle at top left, rgba(112, 190, 255, 0.28), transparent 34%),
+        var(--bg);
+      color: var(--text);
     }
     h1 {
-      margin-bottom: 8px;
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: 0;
     }
     p {
-      color: #555;
-      margin-bottom: 24px;
+      color: var(--muted);
+      margin: 0 0 24px;
+      line-height: 1.55;
+    }
+    .shell {
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid rgba(207, 230, 251, 0.9);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 26px;
+      backdrop-filter: blur(10px);
+    }
+    .notice {
+      background: #fff8dd;
+      border: 1px solid #f2d982;
+      color: #72540b;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 22px;
+      font-size: 13px;
     }
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 14px;
+      gap: 16px;
     }
     .field {
       display: flex;
@@ -30,9 +70,25 @@
     .field.full {
       grid-column: 1 / -1;
     }
+    label {
+      color: #23485f;
+      font-weight: 700;
+      font-size: 13px;
+    }
     input, textarea, select {
-      padding: 10px;
+      width: 100%;
+      padding: 11px 12px;
       font-size: 14px;
+      color: var(--text);
+      background: #ffffff;
+      border: 1px solid #bedcf4;
+      border-radius: 10px;
+      outline: none;
+      transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 4px rgba(35, 136, 217, 0.12);
     }
     textarea {
       min-height: 100px;
@@ -40,27 +96,44 @@
     }
     button {
       margin-top: 18px;
-      padding: 10px 14px;
+      padding: 11px 16px;
       font-size: 14px;
+      font-weight: 700;
       cursor: pointer;
+      color: #ffffff;
+      background: var(--primary);
+      border: 1px solid var(--primary);
+      border-radius: 10px;
+      transition: background 140ms ease, transform 140ms ease, box-shadow 140ms ease;
+    }
+    button:hover {
+      background: var(--primary-dark);
+      box-shadow: 0 10px 22px rgba(35, 136, 217, 0.22);
+      transform: translateY(-1px);
     }
     #status {
       margin-top: 12px;
-      color: green;
+      color: var(--success);
       font-weight: bold;
+      white-space: pre-wrap;
     }
     .section-title {
-      margin: 32px 0 8px;
+      margin: 34px 0 12px;
       font-size: 16px;
       font-weight: bold;
-      border-bottom: 2px solid #ddd;
-      padding-bottom: 6px;
+      color: var(--primary-dark);
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 10px;
     }
     .file-row {
       display: flex;
       flex-direction: column;
       gap: 6px;
       margin-bottom: 14px;
+      padding: 14px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 12px;
     }
     .file-row label {
       font-weight: bold;
@@ -68,170 +141,438 @@
     }
     .file-status {
       font-size: 13px;
-      color: #555;
+      color: var(--muted);
       margin-top: 2px;
     }
     .file-status.saved {
-      color: #2a7a2a;
+      color: var(--success);
     }
     .file-clear {
       font-size: 12px;
-      color: #c00;
-      background: none;
+      color: var(--danger);
+      background: transparent;
       border: none;
       cursor: pointer;
       padding: 0;
       margin-top: 0;
       text-decoration: underline;
+      align-self: flex-start;
+      box-shadow: none;
+      transform: none;
+    }
+    .file-clear:hover {
+      color: #9f2630;
+      background: transparent;
+      box-shadow: none;
+      transform: none;
     }
     .checkbox-row {
       display: flex;
       gap: 8px;
       align-items: center;
-      margin: 10px 0;
+      margin: 10px 0 16px;
+      padding: 12px 14px;
+      background: var(--panel-soft);
+      border: 1px solid var(--line);
+      border-radius: 12px;
     }
     .checkbox-row input {
       width: auto;
     }
     .hint {
-      color: #666;
+      color: var(--muted);
       font-size: 13px;
       margin: 4px 0 12px;
+    }
+    .file-help {
+      color: var(--muted);
+      margin-bottom: 16px;
+      font-size: 14px;
+    }
+    #fileStatus {
+      margin-top: 12px;
+      color: var(--success);
+      font-weight: bold;
+      white-space: pre-wrap;
+    }
+    .step-nav {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 20px 0 24px;
+    }
+    .step-tab {
+      margin: 0;
+      color: var(--primary-dark);
+      background: #ffffff;
+      border-color: var(--line);
+      box-shadow: none;
+    }
+    .step-tab.active {
+      color: #ffffff;
+      background: var(--primary);
+      border-color: var(--primary);
+    }
+    .step-panel {
+      display: none;
+    }
+    .step-panel.active {
+      display: block;
+    }
+    .step-actions {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 22px;
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+    }
+    .secondary {
+      color: var(--primary-dark);
+      background: #ffffff;
+      border-color: var(--line);
+      box-shadow: none;
+    }
+    .secondary:hover {
+      color: #ffffff;
+      background: var(--primary-dark);
+    }
+    .repeat-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .repeat-item {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--panel-soft);
+      padding: 14px;
+    }
+    .repeat-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+      color: var(--primary-dark);
+      font-weight: 800;
+    }
+    .remove-item {
+      margin: 0;
+      padding: 6px 10px;
+      color: var(--danger);
+      background: transparent;
+      border: none;
+      box-shadow: none;
+    }
+    .remove-item:hover {
+      color: #ffffff;
+      background: var(--danger);
+      box-shadow: none;
+      transform: none;
+    }
+    @media (max-width: 720px) {
+      body {
+        padding: 18px 12px 40px;
+      }
+      .shell {
+        padding: 18px;
+      }
+      .grid {
+        grid-template-columns: 1fr;
+      }
+      .field.full {
+        grid-column: auto;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>지원서 자동완성 설정</h1>
-  <p>여기에 저장한 정보를 채용 사이트 폼에 자동으로 넣습니다. AI를 켜면 페이지의 질문과 입력칸을 읽고 한국어 지원서 답변도 작성합니다.</p>
-
-  <div class="grid">
-    <div class="field">
-      <label for="firstName">이름 (First Name)</label>
-      <input id="firstName" />
+  <main class="shell">
+    <h1>지원서 자동완성 설정</h1>
+    <p>이력서와 포트폴리오를 분석해 프로필을 저장하고, 채용 사이트 질문에 맞춰 한국어 답변을 작성합니다.</p>
+    <div id="previewNotice" class="notice" hidden>
+      현재 파일 미리보기로 열려 있어 실제 확장 프로그램 저장소가 아닌 브라우저 임시 저장소를 사용합니다. 실제 사용은 chrome://extensions에서 확장 프로그램 옵션 페이지로 열어 주세요.
     </div>
 
-    <div class="field">
-      <label for="lastName">성 (Last Name)</label>
-      <input id="lastName" />
+    <div class="step-nav" aria-label="프로필 입력 단계">
+      <button type="button" class="step-tab active" data-step-target="basicStep">기본 정보</button>
+      <button type="button" class="step-tab" data-step-target="educationStep">학력</button>
+      <button type="button" class="step-tab" data-step-target="experienceStep">경력</button>
+      <button type="button" class="step-tab" data-step-target="projectStep">프로젝트</button>
+      <button type="button" class="step-tab" data-step-target="extraStep">추가 정보</button>
+      <button type="button" class="step-tab" data-step-target="documentStep">파일 / AI</button>
     </div>
 
-    <div class="field full">
-      <label for="fullName">전체 이름</label>
-      <input id="fullName" />
-    </div>
+    <section id="basicStep" class="step-panel active">
+      <div class="section-title">기본 정보</div>
+      <div class="grid">
+        <div class="field">
+          <label for="firstName">이름</label>
+          <input id="firstName" />
+        </div>
+        <div class="field">
+          <label for="lastName">성</label>
+          <input id="lastName" />
+        </div>
+        <div class="field full">
+          <label for="fullName">전체 이름</label>
+          <input id="fullName" />
+        </div>
+        <div class="field">
+          <label for="gender">성별</label>
+          <select id="gender">
+            <option value="">선택 안 함</option>
+            <option value="남성">남성</option>
+            <option value="여성">여성</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="birthday">생년월일</label>
+          <input id="birthday" placeholder="YYYY.MM.DD" />
+        </div>
+        <div class="field">
+          <label for="nationality">국적</label>
+          <input id="nationality" placeholder="대한민국" />
+        </div>
+        <div class="field">
+          <label for="joinPossibleDate">입사 가능일</label>
+          <input id="joinPossibleDate" placeholder="YYYY.MM.DD" />
+        </div>
+        <div class="field full">
+          <label for="email">이메일</label>
+          <input id="email" />
+        </div>
+        <div class="field full">
+          <label for="phone">휴대폰 번호</label>
+          <input id="phone" />
+        </div>
+        <div class="field">
+          <label for="zip">우편번호</label>
+          <input id="zip" />
+        </div>
+        <div class="field">
+          <label for="city">도시</label>
+          <input id="city" />
+        </div>
+        <div class="field">
+          <label for="state">주/도/지역</label>
+          <input id="state" />
+        </div>
+        <div class="field full">
+          <label for="address">주소</label>
+          <input id="address" />
+        </div>
+        <div class="field full">
+          <label for="addressDetail">상세 주소</label>
+          <input id="addressDetail" />
+        </div>
+        <div class="field">
+          <label for="university">대표 학교</label>
+          <input id="university" />
+        </div>
+        <div class="field">
+          <label for="desiredRole">희망 직무</label>
+          <input id="desiredRole" />
+        </div>
+        <div class="field full">
+          <label for="linkedin">링크드인 URL</label>
+          <input id="linkedin" />
+        </div>
+        <div class="field full">
+          <label for="github">깃허브 URL</label>
+          <input id="github" />
+        </div>
+        <div class="field full">
+          <label for="portfolio">포트폴리오 URL</label>
+          <input id="portfolio" />
+        </div>
+        <div class="field full">
+          <label for="homepage">홈페이지 / 블로그</label>
+          <input id="homepage" />
+        </div>
+        <div class="field full">
+          <label for="otherSNS">기타 SNS</label>
+          <input id="otherSNS" />
+        </div>
+      </div>
+      <div class="step-actions">
+        <span></span>
+        <button type="button" class="nextStep" data-next-step="educationStep">다음</button>
+      </div>
+    </section>
 
-    <div class="field full">
-      <label for="email">이메일</label>
-      <input id="email" />
-    </div>
+    <section id="educationStep" class="step-panel">
+      <div class="section-title">학력</div>
+      <p class="hint">학교명, 전공, 재학기간, 졸업구분, 성적처럼 채용 사이트 학력란에 반복 입력되는 정보를 저장합니다.</p>
+      <div id="educationList" class="repeat-list"></div>
+      <button type="button" class="secondary" id="addEducationBtn">학력 추가</button>
+      <div class="step-actions">
+        <button type="button" class="secondary prevStep" data-prev-step="basicStep">이전</button>
+        <button type="button" class="nextStep" data-next-step="experienceStep">다음</button>
+      </div>
+    </section>
 
-    <div class="field full">
-      <label for="phone">휴대폰 번호</label>
-      <input id="phone" />
-    </div>
+    <section id="experienceStep" class="step-panel">
+      <div class="section-title">경력</div>
+      <p class="hint">인턴, 직장경력, 동아리 운영진처럼 회사/조직 단위로 입력해야 하는 내용을 저장합니다.</p>
+      <div class="field full">
+        <label for="experience">경력 요약</label>
+        <textarea id="experience"></textarea>
+      </div>
+      <div id="experienceList" class="repeat-list"></div>
+      <button type="button" class="secondary" id="addExperienceBtn">경력 추가</button>
+      <div class="step-actions">
+        <button type="button" class="secondary prevStep" data-prev-step="educationStep">이전</button>
+        <button type="button" class="nextStep" data-next-step="projectStep">다음</button>
+      </div>
+    </section>
 
-    <div class="field">
-      <label for="city">도시</label>
-      <input id="city" />
-    </div>
+    <section id="projectStep" class="step-panel">
+      <div class="section-title">프로젝트 / 자기소개</div>
+      <div class="grid">
+        <div class="field">
+          <label for="skills">핵심 기술 / 역량</label>
+          <input id="skills" />
+        </div>
+        <div class="field full">
+          <label for="summary">간단 자기소개</label>
+          <textarea id="summary"></textarea>
+        </div>
+        <div class="field full">
+          <label for="careerGoals">지원서 답변 참고 메모</label>
+          <textarea id="careerGoals"></textarea>
+        </div>
+        <div class="field full">
+          <label for="resumeContext">이력서/포트폴리오 추출 내용</label>
+          <textarea id="resumeContext" placeholder="AI가 이력서와 포트폴리오에서 추출한 경력, 프로젝트, 강점이 여기에 저장됩니다."></textarea>
+        </div>
+      </div>
+      <div id="projectList" class="repeat-list"></div>
+      <button type="button" class="secondary" id="addProjectBtn">프로젝트 추가</button>
+      <div class="step-actions">
+        <button type="button" class="secondary prevStep" data-prev-step="experienceStep">이전</button>
+        <button type="button" class="nextStep" data-next-step="extraStep">다음</button>
+      </div>
+    </section>
 
-    <div class="field">
-      <label for="state">주/도/지역</label>
-      <input id="state" />
-    </div>
+    <section id="extraStep" class="step-panel">
+      <div class="section-title">추가 정보</div>
+      <p class="hint">장애/보훈/병역 정보는 사용자가 직접 입력한 경우에만 자동완성에 사용합니다.</p>
+      <div class="grid">
+        <div class="field">
+          <label for="disabilityStatus">장애여부</label>
+          <select id="disabilityStatus">
+            <option value="">선택 안 함</option>
+            <option value="비대상">비대상</option>
+            <option value="대상">대상</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="veteranStatus">보훈여부</label>
+          <select id="veteranStatus">
+            <option value="">선택 안 함</option>
+            <option value="비대상">비대상</option>
+            <option value="대상">대상</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="militaryStatus">병역구분</label>
+          <input id="militaryStatus" placeholder="비대상 / 군필 / 미필 / 면제 / 복무중" />
+        </div>
+        <div class="field">
+          <label for="militaryRank">계급</label>
+          <input id="militaryRank" />
+        </div>
+        <div class="field">
+          <label for="militaryStartDate">복무 시작</label>
+          <input id="militaryStartDate" placeholder="YYYY.MM" />
+        </div>
+        <div class="field">
+          <label for="militaryEndDate">복무 종료</label>
+          <input id="militaryEndDate" placeholder="YYYY.MM" />
+        </div>
+        <div class="field full">
+          <label for="militaryDischarge">제대구분 / 면제사유</label>
+          <input id="militaryDischarge" />
+        </div>
+        <div class="field">
+          <label for="recommenderName">추천인 이름</label>
+          <input id="recommenderName" />
+        </div>
+        <div class="field">
+          <label for="recommenderRelationship">추천인 관계</label>
+          <input id="recommenderRelationship" />
+        </div>
+        <div class="field">
+          <label for="recommenderContact">추천인 연락처</label>
+          <input id="recommenderContact" />
+        </div>
+        <div class="field">
+          <label for="recommenderDepartment">추천인 소속</label>
+          <input id="recommenderDepartment" />
+        </div>
+        <div class="field full">
+          <label for="recommenderComment">추천인 메모</label>
+          <input id="recommenderComment" />
+        </div>
+      </div>
+      <div class="step-actions">
+        <button type="button" class="secondary prevStep" data-prev-step="projectStep">이전</button>
+        <button type="button" class="nextStep" data-next-step="documentStep">다음</button>
+      </div>
+    </section>
 
-    <div class="field">
-      <label for="zip">우편번호</label>
-      <input id="zip" />
-    </div>
+    <section id="documentStep" class="step-panel">
+      <div class="section-title">AI 자동완성</div>
+      <p class="hint">AI 사용 시 현재 페이지의 폼 문구와 저장된 프로필이 OpenAI API로 전송됩니다.</p>
 
-    <div class="field">
-      <label for="university">학교 / 대학교</label>
-      <input id="university" />
-    </div>
+      <div class="checkbox-row">
+        <input type="checkbox" id="aiEnabled" />
+        <label for="aiEnabled">AI로 입력칸 판단 및 긴 답변 생성</label>
+      </div>
 
-    <div class="field full">
-      <label for="linkedin">링크드인 URL</label>
-      <input id="linkedin" />
-    </div>
+      <div class="grid">
+        <div class="field full">
+          <label for="openaiApiKey">OpenAI API Key</label>
+          <input id="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" />
+        </div>
+        <div class="field">
+          <label for="aiModel">AI 모델</label>
+          <input id="aiModel" placeholder="gpt-5.4-mini" />
+        </div>
+      </div>
 
-    <div class="field full">
-      <label for="github">깃허브 URL</label>
-      <input id="github" />
-    </div>
+      <div class="section-title">파일 업로드</div>
+      <p class="file-help">이력서/포트폴리오 파일을 저장해두면 파일 업로드 칸에 자동으로 넣어줍니다.</p>
 
-    <div class="field full">
-      <label for="portfolio">포트폴리오 URL</label>
-      <input id="portfolio" />
-    </div>
+      <div class="file-row">
+        <label for="resumeFileInput">이력서</label>
+        <input type="file" id="resumeFileInput" accept=".pdf,.doc,.docx" />
+        <div class="file-status" id="resumeFileStatus">저장된 파일 없음</div>
+        <button type="button" class="file-clear" id="resumeFileClear">삭제</button>
+      </div>
 
-    <div class="field full">
-      <label for="summary">간단 자기소개</label>
-      <textarea id="summary"></textarea>
-    </div>
+      <div class="file-row">
+        <label for="portfolioFileInput">포트폴리오 파일</label>
+        <input type="file" id="portfolioFileInput" accept=".pdf,.doc,.docx,.zip,.pptx" />
+        <div class="file-status" id="portfolioFileStatus">저장된 파일 없음</div>
+        <button type="button" class="file-clear" id="portfolioFileClear">삭제</button>
+      </div>
 
-    <div class="field">
-      <label for="desiredRole">희망 직무</label>
-      <input id="desiredRole" />
-    </div>
+      <button type="button" id="parseDocumentsBtn">이력서/포트폴리오에서 프로필 추출</button>
+      <div id="fileStatus"></div>
 
-    <div class="field">
-      <label for="skills">핵심 기술 / 역량</label>
-      <input id="skills" />
-    </div>
+      <div class="step-actions">
+        <button type="button" class="secondary prevStep" data-prev-step="extraStep">이전</button>
+        <span></span>
+      </div>
+    </section>
 
-    <div class="field full">
-      <label for="experience">주요 경력 / 프로젝트</label>
-      <textarea id="experience"></textarea>
-    </div>
+    <button type="button" id="saveBtn">저장</button>
+    <div id="status"></div>
 
-    <div class="field full">
-      <label for="careerGoals">지원서 답변 참고 메모</label>
-      <textarea id="careerGoals"></textarea>
-    </div>
-  </div>
-
-  <div class="section-title">AI 자동완성</div>
-  <p class="hint">AI 사용 시 현재 페이지의 폼 문구와 저장된 프로필이 OpenAI API로 전송됩니다.</p>
-
-  <div class="checkbox-row">
-    <input type="checkbox" id="aiEnabled" />
-    <label for="aiEnabled">AI로 입력칸 판단 및 긴 답변 생성</label>
-  </div>
-
-  <div class="grid">
-    <div class="field full">
-      <label for="openaiApiKey">OpenAI API Key</label>
-      <input id="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" />
-    </div>
-
-    <div class="field">
-      <label for="aiModel">AI Model</label>
-      <input id="aiModel" placeholder="gpt-5.4-mini" />
-    </div>
-  </div>
-
-  <button id="saveBtn">저장</button>
-  <div id="status"></div>
-
-  <div class="section-title">파일 업로드</div>
-  <p style="color:#555; margin-bottom:16px; font-size:14px;">이력서/포트폴리오 파일을 저장해두면 파일 업로드 칸에 자동으로 넣어줍니다.</p>
-
-  <div class="file-row">
-    <label for="resumeFileInput">이력서 (Resume / CV)</label>
-    <input type="file" id="resumeFileInput" accept=".pdf,.doc,.docx" />
-    <div class="file-status" id="resumeFileStatus">저장된 파일 없음</div>
-    <button class="file-clear" id="resumeFileClear">삭제</button>
-  </div>
-
-  <div class="file-row">
-    <label for="portfolioFileInput">포트폴리오 파일</label>
-    <input type="file" id="portfolioFileInput" accept=".pdf,.doc,.docx,.zip,.pptx" />
-    <div class="file-status" id="portfolioFileStatus">저장된 파일 없음</div>
-    <button class="file-clear" id="portfolioFileClear">삭제</button>
-  </div>
-
-  <div id="fileStatus" style="margin-top:10px; color:green; font-weight:bold;"></div>
+  </main>
 
   <script src="profile-settings.js"></script>
 </body>
